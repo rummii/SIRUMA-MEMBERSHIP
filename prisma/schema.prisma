@@ -1,0 +1,136 @@
+// Siruma Highlands Beach Resort & Leisure Club
+// Membership & Operations Platform — PostgreSQL schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  MEMBER
+  STAFF
+  ADMIN
+}
+
+enum Tier {
+  PREMIUM
+  VIP
+}
+
+enum MembershipStatus {
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+}
+
+enum TransactionType {
+  CREDIT_DEDUCTION
+  REFUND
+  TOP_UP
+}
+
+enum Outlet {
+  RESTAURANT
+  CABANA
+  ACTIVITIES
+  ENTRANCE
+  ROOM
+}
+
+enum UpgradeStatus {
+  NONE
+  PREFERRED_RATE
+  COMPLIMENTARY
+}
+
+enum ReservationStatus {
+  CONFIRMED
+  CHECKED_IN
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  phone        String?
+  role         Role     @default(MEMBER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  membership       Membership?
+  processedTransactions Transaction[] @relation("ProcessedBy")
+}
+
+model Membership {
+  id                  String           @id @default(cuid())
+  memberNumber        String           @unique
+  qrToken             String           @unique
+  tier                Tier
+  validFrom           DateTime         @default(now())
+  validUntil          DateTime
+  creditBalance       Decimal          @default(0) @db.Decimal(12, 2)
+  complimentaryStayQuota Int
+  complimentaryStayUsed  Int           @default(0)
+  freeGuestQuota      Int
+  discountPercent     Decimal          @db.Decimal(4, 2)
+  advanceBookingDays  Int
+  status              MembershipStatus @default(ACTIVE)
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  transactions Transaction[]
+  reservations Reservation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([tier])
+}
+
+model Transaction {
+  id                 String          @id @default(cuid())
+  type               TransactionType
+  amount             Decimal         @db.Decimal(12, 2)
+  outlet             Outlet
+  note               String
+  createdAt          DateTime        @default(now())
+
+  membershipId String
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  processedByStaffId String
+  processedBy        User   @relation("ProcessedBy", fields: [processedByStaffId], references: [id])
+
+  @@index([membershipId])
+  @@index([createdAt])
+}
+
+model Reservation {
+  id                   String            @id @default(cuid())
+  checkIn              DateTime
+  checkOut             DateTime
+  guestCount           Int
+  isComplimentaryStay  Boolean           @default(false)
+  discountApplied      Decimal           @default(0) @db.Decimal(4, 2)
+  upgradeStatus        UpgradeStatus     @default(NONE)
+  earlyCheckinHours    Int               @default(0)
+  lateCheckoutHours    Int               @default(0)
+  status               ReservationStatus @default(CONFIRMED)
+  createdAt            DateTime          @default(now())
+
+  membershipId String
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@index([membershipId])
+  @@index([status])
+}
+
